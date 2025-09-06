@@ -1,61 +1,118 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Plus, Users, DollarSign, Eye, Edit, Trash2, MoreHorizontal } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
+import { Plus, Users, DollarSign, Eye, Edit, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { api, getUserSession, Course } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
 
 const EducatorCourses = () => {
-  const courses = [
-    {
-      id: 1,
-      title: "React Development Masterclass",
-      status: "Published",
-      students: 245,
-      revenue: "$2,450",
-      rating: 4.8,
-      lastUpdated: "2024-01-15"
-    },
-    {
-      id: 2,
-      title: "Advanced JavaScript Concepts",
-      status: "Draft",
-      students: 0,
-      revenue: "$0",
-      rating: null,
-      lastUpdated: "2024-02-01"
-    },
-    {
-      id: 3,
-      title: "Modern CSS Techniques",
-      status: "Published",
-      students: 156,
-      revenue: "$1,560",
-      rating: 4.6,
-      lastUpdated: "2024-01-20"
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
+  const [isCreating, setIsCreating] = useState(false);
+  const [newCourse, setNewCourse] = useState({
+    title: "",
+    description: "",
+    price: 0,
+    is_published: false
+  });
+  
+  const { toast } = useToast();
+  const userSession = getUserSession();
+
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      if (!userSession || userSession.userType !== 'educator') return;
+      
+      const response = await api.getCourses({ 
+        educator_id: userSession.user.educator_id 
+      });
+      
+      if (response.success && response.data) {
+        setCourses(response.data);
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to fetch courses"
+      });
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
+
+  const handleCreateCourse = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!userSession || userSession.userType !== 'educator') return;
+    
+    setIsCreating(true);
+    try {
+      const response = await api.createCourse({
+        educator_id: userSession.user.educator_id,
+        ...newCourse
+      });
+      
+      if (response.success) {
+        toast({
+          title: "Success",
+          description: "Course created successfully"
+        });
+        setIsCreateDialogOpen(false);
+        setNewCourse({ title: "", description: "", price: 0, is_published: false });
+        fetchCourses();
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Error",
+        description: "Failed to create course"
+      });
+    } finally {
+      setIsCreating(false);
+    }
+  };
 
   const stats = [
     {
       title: "Total Students",
-      value: courses.reduce((sum, course) => sum + course.students, 0).toLocaleString(),
+      value: courses.reduce((sum, course) => sum + course.enrollment_count, 0).toLocaleString(),
       icon: Users,
       color: "text-blue-600"
     },
     {
       title: "Total Revenue",
-      value: `$${courses.reduce((sum, course) => sum + parseFloat(course.revenue.replace('$', '').replace(',', '')), 0).toLocaleString()}`,
+      value: `$${courses.reduce((sum, course) => sum + (course.price * course.enrollment_count), 0).toLocaleString()}`,
       icon: DollarSign,
       color: "text-green-600"
     },
     {
       title: "Published Courses",
-      value: courses.filter(course => course.status === "Published").length.toString(),
+      value: courses.filter(course => course.is_published).length.toString(),
       icon: Eye,
       color: "text-primary"
     }
   ];
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -65,10 +122,77 @@ const EducatorCourses = () => {
           <h2 className="text-2xl font-bold">My Courses</h2>
           <p className="text-muted-foreground">Create and manage your course content</p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Create New Course
-        </Button>
+        <Dialog open={isCreateDialogOpen} onOpenChange={setIsCreateDialogOpen}>
+          <DialogTrigger asChild>
+            <Button>
+              <Plus className="h-4 w-4 mr-2" />
+              Create New Course
+            </Button>
+          </DialogTrigger>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Create New Course</DialogTitle>
+              <DialogDescription>
+                Add a new course to your teaching portfolio
+              </DialogDescription>
+            </DialogHeader>
+            <form onSubmit={handleCreateCourse} className="space-y-4">
+              <div className="space-y-2">
+                <Label htmlFor="title">Course Title</Label>
+                <Input
+                  id="title"
+                  value={newCourse.title}
+                  onChange={(e) => setNewCourse(prev => ({ ...prev, title: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="description">Description</Label>
+                <Textarea
+                  id="description"
+                  value={newCourse.description}
+                  onChange={(e) => setNewCourse(prev => ({ ...prev, description: e.target.value }))}
+                  required
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="price">Price ($)</Label>
+                <Input
+                  id="price"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  value={newCourse.price}
+                  onChange={(e) => setNewCourse(prev => ({ ...prev, price: parseFloat(e.target.value) }))}
+                  required
+                />
+              </div>
+              <div className="flex items-center space-x-2">
+                <Switch
+                  id="published"
+                  checked={newCourse.is_published}
+                  onCheckedChange={(checked) => setNewCourse(prev => ({ ...prev, is_published: checked }))}
+                />
+                <Label htmlFor="published">Publish immediately</Label>
+              </div>
+              <div className="flex justify-end space-x-2">
+                <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button type="submit" disabled={isCreating}>
+                  {isCreating ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Creating...
+                    </>
+                  ) : (
+                    "Create Course"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </DialogContent>
+        </Dialog>
       </div>
 
       {/* Stats Grid */}
@@ -112,29 +236,29 @@ const EducatorCourses = () => {
             </TableHeader>
             <TableBody>
               {courses.map((course) => (
-                <TableRow key={course.id}>
+                <TableRow key={course.course_id}>
                   <TableCell className="font-medium">{course.title}</TableCell>
                   <TableCell>
                     <Badge 
-                      variant={course.status === "Published" ? "default" : "secondary"}
+                      variant={course.is_published ? "default" : "secondary"}
                     >
-                      {course.status}
+                      {course.is_published ? "Published" : "Draft"}
                     </Badge>
                   </TableCell>
-                  <TableCell>{course.students.toLocaleString()}</TableCell>
-                  <TableCell className="font-medium">{course.revenue}</TableCell>
+                  <TableCell>{course.enrollment_count.toLocaleString()}</TableCell>
+                  <TableCell className="font-medium">${(course.price * course.enrollment_count).toLocaleString()}</TableCell>
                   <TableCell>
-                    {course.rating ? (
+                    {course.star_rating > 0 ? (
                       <div className="flex items-center gap-1">
                         <span className="text-yellow-500">★</span>
-                        <span>{course.rating}</span>
+                        <span>{course.star_rating.toFixed(1)}</span>
                       </div>
                     ) : (
                       <span className="text-muted-foreground">No ratings yet</span>
                     )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
-                    {course.lastUpdated}
+                    {new Date(course.created_at).toLocaleDateString()}
                   </TableCell>
                   <TableCell>
                     <DropdownMenu>

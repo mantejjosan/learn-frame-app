@@ -1,3 +1,4 @@
+import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -10,67 +11,88 @@ import {
   Star, 
   ThumbsUp, 
   MessageCircle,
-  Download 
+  Download,
+  DollarSign,
+  Loader2
 } from "lucide-react";
+import { api, getUserSession, Course } from "@/lib/api";
 
 const EducatorAnalytics = () => {
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [timeframe, setTimeframe] = useState("30days");
+  
+  const userSession = getUserSession();
+
+  useEffect(() => {
+    fetchAnalytics();
+  }, []);
+
+  const fetchAnalytics = async () => {
+    try {
+      if (!userSession || userSession.userType !== 'educator') return;
+      
+      const response = await api.getCourses({ 
+        educator_id: userSession.user.educator_id 
+      });
+      
+      if (response.success && response.data) {
+        setCourses(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch analytics:", error);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calculate real metrics from API data
+  const totalRevenue = courses.reduce((sum, course) => sum + (course.price * course.enrollment_count), 0);
+  const totalStudents = courses.reduce((sum, course) => sum + course.enrollment_count, 0);
+  const averageRating = courses.length > 0 
+    ? courses.reduce((sum, course) => sum + course.star_rating, 0) / courses.length 
+    : 0;
+  const totalViews = courses.reduce((sum, course) => sum + course.follower_count, 0);
+
   const overviewStats = [
     {
       title: "Total Views",
-      value: "24,567",
+      value: totalViews.toLocaleString(),
       change: "+12.5%",
       icon: Eye,
       color: "text-blue-600"
     },
     {
-      title: "Active Students",
-      value: "1,234",
+      title: "Active Students", 
+      value: totalStudents.toLocaleString(),
       change: "+8.2%",
       icon: Users,
       color: "text-green-600"
     },
     {
-      title: "Completion Rate",
-      value: "68.4%",
-      change: "+5.1%",
-      icon: TrendingUp,
+      title: "Total Revenue",
+      value: `$${totalRevenue.toLocaleString()}`,
+      change: "+15.3%",
+      icon: DollarSign,
       color: "text-purple-600"
     },
     {
       title: "Average Rating",
-      value: "4.7",
+      value: averageRating.toFixed(1),
       change: "+0.2",
       icon: Star,
       color: "text-yellow-600"
     }
   ];
 
-  const coursePerformance = [
-    {
-      course: "React Development Masterclass",
-      students: 245,
-      completion: 72,
-      rating: 4.8,
-      revenue: "$2,450",
-      engagement: 85
-    },
-    {
-      course: "Modern CSS Techniques",
-      students: 156,
-      completion: 64,
-      rating: 4.6,
-      revenue: "$1,560",
-      engagement: 78
-    },
-    {
-      course: "Advanced JavaScript Concepts",
-      students: 89,
-      completion: 58,
-      rating: 4.5,
-      revenue: "$890",
-      engagement: 71
-    }
-  ];
+  const coursePerformance = courses.map(course => ({
+    course: course.title,
+    students: course.enrollment_count,
+    completion: Math.floor(Math.random() * 40) + 60, // Mock completion rate 60-100%
+    rating: course.star_rating,
+    revenue: `$${(course.price * course.enrollment_count).toLocaleString()}`,
+    engagement: Math.floor(Math.random() * 30) + 70 // Mock engagement 70-100%
+  }));
 
   const recentActivity = [
     {
@@ -100,6 +122,14 @@ const EducatorAnalytics = () => {
     }
   ];
 
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -108,7 +138,7 @@ const EducatorAnalytics = () => {
           <h2 className="text-2xl font-bold">Analytics Dashboard</h2>
           <p className="text-muted-foreground">Track your course performance and student engagement</p>
         </div>
-        <Select defaultValue="30days">
+        <Select value={timeframe} onValueChange={setTimeframe}>
           <SelectTrigger className="w-40">
             <SelectValue />
           </SelectTrigger>

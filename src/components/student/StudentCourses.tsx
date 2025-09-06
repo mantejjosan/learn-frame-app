@@ -1,67 +1,49 @@
+import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { PlayCircle, Clock, BookOpen, Filter } from "lucide-react";
+import { PlayCircle, Clock, BookOpen, Filter, Loader2 } from "lucide-react";
+import { api, Course } from "@/lib/api";
 
 const StudentCourses = () => {
-  const enrolledCourses = [
-    {
-      id: 1,
-      title: "React Development Masterclass",
-      instructor: "John Smith",
-      progress: 65,
-      duration: "12 hours",
-      thumbnail: "https://images.unsplash.com/photo-1633356122544-f134324a6cee?w=400",
-      category: "Programming",
-      level: "Intermediate"
-    },
-    {
-      id: 2,
-      title: "Digital Marketing Essentials",
-      instructor: "Sarah Johnson",
-      progress: 30,
-      duration: "8 hours",
-      thumbnail: "https://images.unsplash.com/photo-1460925895917-afdab827c52f?w=400",
-      category: "Marketing",
-      level: "Beginner"
-    },
-    {
-      id: 3,
-      title: "UI/UX Design Principles",
-      instructor: "Mike Chen",
-      progress: 90,
-      duration: "10 hours",
-      thumbnail: "https://images.unsplash.com/photo-1581291518857-4e27b48ff24e?w=400",
-      category: "Design",
-      level: "Advanced"
-    }
-  ];
+  const [courses, setCourses] = useState<Course[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+  const [selectedCategory, setSelectedCategory] = useState("all");
 
-  const availableCourses = [
-    {
-      id: 4,
-      title: "Python for Data Science",
-      instructor: "Dr. Emma Wilson",
-      price: "$79",
-      rating: 4.8,
-      students: "12,450",
-      thumbnail: "https://images.unsplash.com/photo-1526379095098-d400fd0bf935?w=400",
-      category: "Programming",
-      level: "Intermediate"
-    },
-    {
-      id: 5,
-      title: "Graphic Design Fundamentals",
-      instructor: "Alex Rodriguez",
-      price: "$49",
-      rating: 4.6,
-      students: "8,230",
-      thumbnail: "https://images.unsplash.com/photo-1558655146-364adaf1fcc9?w=400",
-      category: "Design",
-      level: "Beginner"
+  useEffect(() => {
+    fetchCourses();
+  }, []);
+
+  const fetchCourses = async () => {
+    try {
+      const response = await api.getCourses({ is_published: true });
+      if (response.success && response.data) {
+        setCourses(response.data);
+      }
+    } catch (error) {
+      console.error("Failed to fetch courses:", error);
+    } finally {
+      setIsLoading(false);
     }
-  ];
+  };
+
+  // Mock enrolled courses for display
+  const enrolledCourses = courses.slice(0, 3).map(course => ({
+    ...course,
+    progress: Math.floor(Math.random() * 100),
+    instructor: "John Instructor" // Mock instructor name
+  }));
+
+  const availableCourses = courses.slice(3);
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="h-8 w-8 animate-spin" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">
@@ -74,13 +56,11 @@ const StudentCourses = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {enrolledCourses.map((course) => (
-            <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+            <Card key={course.course_id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-video bg-muted relative">
-                <img 
-                  src={course.thumbnail} 
-                  alt={course.title}
-                  className="w-full h-full object-cover"
-                />
+                <div className="w-full h-full bg-gradient-to-br from-primary/10 to-accent/10 flex items-center justify-center">
+                  <BookOpen className="h-12 w-12 text-muted-foreground" />
+                </div>
                 <div className="absolute inset-0 bg-black/20 flex items-center justify-center">
                   <Button size="icon" variant="secondary" className="bg-white/90 hover:bg-white">
                     <PlayCircle className="h-6 w-6" />
@@ -104,9 +84,9 @@ const StudentCourses = () => {
                 </div>
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
-                  <span>{course.duration}</span>
+                  <span>${course.price}</span>
                   <Badge variant="outline" className="text-xs">
-                    {course.level}
+                    {course.is_published ? "Published" : "Draft"}
                   </Badge>
                 </div>
                 <Button className="w-full">Continue Learning</Button>
@@ -138,33 +118,31 @@ const StudentCourses = () => {
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {availableCourses.map((course) => (
-            <Card key={course.id} className="overflow-hidden hover:shadow-lg transition-shadow">
+            <Card key={course.course_id} className="overflow-hidden hover:shadow-lg transition-shadow">
               <div className="aspect-video bg-muted">
-                <img 
-                  src={course.thumbnail} 
-                  alt={course.title}
-                  className="w-full h-full object-cover"
-                />
+                <div className="w-full h-full bg-gradient-to-br from-secondary/10 to-muted flex items-center justify-center">
+                  <BookOpen className="h-12 w-12 text-muted-foreground" />
+                </div>
               </div>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg leading-tight">{course.title}</CardTitle>
-                <CardDescription>by {course.instructor}</CardDescription>
+                <CardDescription>{course.description.slice(0, 60)}...</CardDescription>
               </CardHeader>
               <CardContent className="space-y-3">
                 <div className="flex items-center justify-between">
-                  <span className="text-2xl font-bold text-primary">{course.price}</span>
+                  <span className="text-2xl font-bold text-primary">${course.price}</span>
                   <div className="flex items-center gap-1 text-sm">
                     <span className="text-yellow-500">★</span>
-                    <span className="font-medium">{course.rating}</span>
-                    <span className="text-muted-foreground">({course.students})</span>
+                    <span className="font-medium">{course.star_rating.toFixed(1)}</span>
+                    <span className="text-muted-foreground">({course.enrollment_count})</span>
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="outline" className="text-xs">
-                    {course.category}
+                    Published
                   </Badge>
                   <Badge variant="outline" className="text-xs">
-                    {course.level}
+                    {course.enrollment_count} students
                   </Badge>
                 </div>
                 <Button className="w-full">Enroll Now</Button>

@@ -5,8 +5,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
-import { BookOpen, ArrowLeft } from "lucide-react";
+import { BookOpen, ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { api, setUserSession } from "@/lib/api";
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -14,11 +15,12 @@ const Login = () => {
     password: "",
     userType: ""
   });
+  const [isLoading, setIsLoading] = useState(false);
   
   const navigate = useNavigate();
   const { toast } = useToast();
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!formData.userType) {
@@ -30,17 +32,61 @@ const Login = () => {
       return;
     }
 
-    // Mock login - redirect based on user type
-    toast({
-      title: "Welcome back!",
-      description: "You've been signed in successfully."
-    });
+    setIsLoading(true);
 
-    // Redirect to appropriate dashboard
-    if (formData.userType === "student") {
-      navigate("/student");
-    } else {
-      navigate("/educator");
+    try {
+      // For now, we'll simulate login by fetching existing users and checking email match
+      // In a real app, you'd have a proper login endpoint
+      if (formData.userType === "educator") {
+        const response = await api.getEducators();
+        if (response.success && response.data) {
+          // For demo purposes, we'll just use the first educator or create one if none exist
+          let educator = response.data.find(e => e.educator_name.toLowerCase().includes(formData.email.split('@')[0]));
+          
+          if (!educator && response.data.length > 0) {
+            educator = response.data[0];
+          }
+          
+          if (educator) {
+            setUserSession(educator, 'educator');
+            toast({
+              title: "Welcome back!",
+              description: `Signed in as ${educator.educator_name}`
+            });
+            navigate("/educator");
+          } else {
+            throw new Error("No educator found");
+          }
+        }
+      } else {
+        const response = await api.getStudents();
+        if (response.success && response.data) {
+          let student = response.data.find(s => s.student_name.toLowerCase().includes(formData.email.split('@')[0]));
+          
+          if (!student && response.data.length > 0) {
+            student = response.data[0];
+          }
+          
+          if (student) {
+            setUserSession(student, 'student');
+            toast({
+              title: "Welcome back!",
+              description: `Signed in as ${student.student_name}`
+            });
+            navigate("/student");
+          } else {
+            throw new Error("No student found");
+          }
+        }
+      }
+    } catch (error) {
+      toast({
+        variant: "destructive",
+        title: "Login failed",
+        description: "Please check your credentials or create an account first."
+      });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -101,8 +147,15 @@ const Login = () => {
               </Select>
             </div>
 
-            <Button type="submit" className="w-full">
-              Sign In
+            <Button type="submit" className="w-full" disabled={isLoading}>
+              {isLoading ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Signing In...
+                </>
+              ) : (
+                "Sign In"
+              )}
             </Button>
           </form>
 
