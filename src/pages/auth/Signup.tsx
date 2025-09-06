@@ -10,7 +10,7 @@ import { ArrowLeft, ArrowRight, CheckCircle, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import companyInfo from "@/company";
 import { signupFlow } from "@/lib/signupFlow";
-import { api, setUserSession } from "@/lib/api";
+import api from "@/lib/api-client";
 import { SignupFormData } from "@/types/signup";
 
 const Signup = () => {
@@ -179,14 +179,12 @@ const Signup = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-
+  const handleSubmit = async () => {
     if (formData.password !== formData.confirmPassword) {
       toast({
         variant: "destructive",
-        title: "Password mismatch",
-        description: "Please make sure your passwords match."
+        title: "Error",
+        description: "Passwords do not match"
       });
       return;
     }
@@ -194,35 +192,31 @@ const Signup = () => {
     setIsLoading(true);
 
     try {
-      const additionalData: Record<string, any> = {};
-      const questions = getCurrentQuestions();
-
-      questions.forEach(question => {
-        if (formData[question.id] !== undefined) {
-          additionalData[question.id] = formData[question.id];
+      const response = await api.signup({
+        email: formData.email,
+        password: formData.password,
+        role: formData.role as 'student' | 'educator',
+        name: formData.name,
+        additionalData: {
+          ...formData,
+          confirmPassword: undefined,
+          role: undefined,
+          name: undefined,
+          email: undefined,
+          password: undefined
         }
       });
 
-      const response = await api.signup({
-        email: formData.email as string,
-        password: formData.password as string,
-        role: formData.role as 'student' | 'educator',
-        name: formData.name as string,
-        additionalData
-      });
-
-      if (response.success) {
-        setUserSession(response.data, formData.role as 'student' | 'educator');
+      if (response.success && response.data) {
+        const user = response.data.user || response.data;
+        const userRole = user.role || (user.student_id ? 'student' : 'educator');
+        
         toast({
           title: "Account created successfully!",
-          description: `Welcome to ${companyInfo.name}.`
+          description: `Welcome ${user.name || user.student_name || user.educator_name}`
         });
 
-        if (formData.role === "student") {
-          navigate("/student");
-        } else {
-          navigate("/educator");
-        }
+        navigate(userRole === "student" ? "/student" : "/educator");
       } else {
         throw new Error(response.message || "Signup failed");
       }

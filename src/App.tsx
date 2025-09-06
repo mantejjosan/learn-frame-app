@@ -2,7 +2,19 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, unstable_HistoryRouter as HistoryRouter } from "react-router-dom";
+import { createBrowserHistory } from 'history';
+
+// Create a custom history object
+const history = createBrowserHistory({ window });
+
+// Configure future flags for React Router
+const routerConfig = {
+  future: {
+    v7_startTransition: true,
+    v7_relativeSplatPath: true,
+  },
+};
 import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import Signup from "./pages/auth/Signup";
@@ -17,7 +29,11 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <BrowserRouter>
+      <HistoryRouter
+        history={history}
+        // @ts-ignore - The types for future flags might not be available in the current version
+        future={routerConfig.future}
+      >
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/signup" element={<Signup />} />
@@ -27,7 +43,7 @@ const App = () => (
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />
         </Routes>
-      </BrowserRouter>
+      </HistoryRouter>
     </TooltipProvider>
   </QueryClientProvider>
 );

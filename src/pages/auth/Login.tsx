@@ -3,57 +3,43 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { api, setUserSession } from "@/lib/api";
+import api from "@/lib/api-client";
 import companyInfo from "@/company";
 
 const Login = () => {
   const [formData, setFormData] = useState({
     email: "",
-    password: "",
-    userType: ""
+    password: ""
   });
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const navigate = useNavigate();
   const { toast } = useToast();
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-
-    if (!formData.userType) {
-      toast({
-        variant: "destructive",
-        title: "User type required",
-        description: "Please select whether you're signing in as a student or educator."
-      });
-      return;
-    }
-
     setIsLoading(true);
 
     try {
       const response = await api.login({
         email: formData.email,
-        password: formData.password,
-        role: formData.userType as 'student' | 'educator'
+        password: formData.password
       });
 
       if (response.success && response.data) {
-        setUserSession(response.data, formData.userType as 'student' | 'educator');
+        const user = response.data.user || response.data;
+        const userRole = user.role || (user.student_id ? 'student' : 'educator');
+        
         toast({
           title: "Welcome back!",
-          description: `Signed in as ${response.data.name || response.data.student_name || response.data.educator_name}`
+          description: `Signed in as ${user.name || user.student_name || user.educator_name}`
         });
 
-        if (formData.userType === "student") {
-          navigate("/student");
-        } else {
-          navigate("/educator");
-        }
+        // Navigate based on user role
+        navigate(userRole === "student" ? "/student" : "/educator");
       } else {
         throw new Error(response.message || "Login failed");
       }

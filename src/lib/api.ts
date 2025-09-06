@@ -1,4 +1,5 @@
-const BASE_URL = 'https://gdghack-co9h.onrender.com';
+// Use relative path in development to leverage Vite's proxy
+const BASE_URL = import.meta.env.DEV ? '/api' : 'https://gdghack-co9h.onrender.com';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -193,7 +194,6 @@ export const api = {
   login: async (data: {
     email: string;
     password: string;
-    role: 'student' | 'educator';
   }): Promise<ApiResponse<any>> => {
     const response = await fetch(`${BASE_URL}/api/users/login`, {
       method: 'POST',
