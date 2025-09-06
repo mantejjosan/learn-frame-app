@@ -1,7 +1,8 @@
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Link } from "react-router-dom";
-import { BookOpen, Users, Award, TrendingUp } from "lucide-react";
+import { Users, Award, TrendingUp } from "lucide-react";
+import companyInfo from "@/company";
 
 const Index = () => {
   return (
@@ -10,9 +11,9 @@ const Index = () => {
       <header className="container mx-auto px-4 py-6">
         <nav className="flex items-center justify-between">
           <div className="flex items-center space-x-2">
-            <BookOpen className="h-8 w-8 text-primary" />
+            <img src="/placeholder.svg" alt="Logo" className="h-8 w-8" />
             <span className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
-              EduPlatform
+              {companyInfo.name}
             </span>
           </div>
           <div className="flex items-center space-x-4">
@@ -53,7 +54,7 @@ const Index = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-16">
           <Card className="text-center">
             <CardHeader>
-              <BookOpen className="h-12 w-12 text-primary mx-auto mb-4" />
+              <img src="/placeholder.svg" alt="Content" className="h-12 w-12 mx-auto mb-4" />
               <CardTitle>Rich Content</CardTitle>
             </CardHeader>
             <CardContent>

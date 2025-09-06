@@ -2,6 +2,7 @@ import { NavLink, Link } from "react-router-dom";
 import { Button } from "@/components/ui/button";
 import { BookOpen, CreditCard, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
+import companyInfo from "@/company";
 
 const StudentSidebar = () => {
   const navItems = [
@@ -29,13 +30,13 @@ const StudentSidebar = () => {
     <div className="flex flex-col h-full">
       {/* Header */}
       <div className="p-6 border-b">
-        <div className="flex items-center space-x-2">
-          <BookOpen className="h-6 w-6 text-primary" />
-          <span className="text-lg font-bold bg-gradient-primary bg-clip-text text-transparent">
-            EduPlatform
-          </span>
+        <div className="flex items-center space-x-3">
+          <img src="/placeholder.svg" alt="Logo" className="h-8 w-8" />
+          <div>
+            <h1 className="text-lg font-bold text-foreground">{companyInfo.name}</h1>
+            <p className="text-sm text-muted-foreground">Student Portal</p>
+          </div>
         </div>
-        <p className="text-sm text-muted-foreground mt-1">Student Portal</p>
       </div>
 
       {/* Navigation */}

@@ -171,6 +171,39 @@ export const api = {
     });
     return response.json();
   },
+
+  // User authentication APIs
+  signup: async (data: {
+    email: string;
+    password: string;
+    role: 'student' | 'educator';
+    name: string;
+    additionalData?: Record<string, any>;
+  }): Promise<ApiResponse<any>> => {
+    const response = await fetch(`${BASE_URL}/api/users/signup`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  login: async (data: {
+    email: string;
+    password: string;
+    role: 'student' | 'educator';
+  }): Promise<ApiResponse<any>> => {
+    const response = await fetch(`${BASE_URL}/api/users/login`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
 };
 
 export type { Educator, Student, Course, ApiResponse };
