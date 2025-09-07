@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, ChangeEvent } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -8,10 +8,11 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
-import { Plus, Users, DollarSign, Eye, Edit, Trash2, MoreHorizontal, Loader2 } from "lucide-react";
+import { Plus, Users, DollarSign, Eye, Edit, Trash2, MoreHorizontal, Loader2, Upload, X } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { api, getUserSession, Course } from "@/lib/api";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/lib/supabase";
 
 const EducatorCourses = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -21,9 +22,13 @@ const EducatorCourses = () => {
   const [newCourse, setNewCourse] = useState({
     title: "",
     description: "",
-    price: 0,
+    price: 999,
+    course_cover_image_key: "",
     is_published: false
   });
+  const [isUploading, setIsUploading] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
   const userSession = getUserSession();
@@ -36,21 +41,97 @@ const EducatorCourses = () => {
     try {
       if (!userSession || userSession.userType !== 'educator') return;
       
+      // Get courses for the current educator
       const response = await api.getCourses({ 
-        educator_id: userSession.user.educator_id 
+        educator_id: userSession.user.id // Using id instead of educator_id since we're in localStorage mode
       });
       
       if (response.success && response.data) {
         setCourses(response.data);
+      } else {
+        // If no courses found, initialize with empty array
+        setCourses([]);
       }
     } catch (error) {
+      console.error('Error fetching courses:', error);
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to fetch courses"
+        description: error.message || "Failed to fetch courses"
       });
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const handleFileChange = async (e: ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !userSession?.user?.id) return;
+
+    // Check file type
+    if (!file.type.startsWith('image/')) {
+      toast({
+        variant: "destructive",
+        title: "Invalid File Type",
+        description: "Please upload an image file (JPEG, PNG, etc.)"
+      });
+      return;
+    }
+
+    // Set preview
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      setPreviewUrl(event.target?.result as string);
+    };
+    reader.readAsDataURL(file);
+
+    // Upload to Supabase
+    try {
+      setIsUploading(true);
+      const fileExt = file.name.split('.').pop();
+      const fileName = `${Math.random().toString(36).substring(2)}.${fileExt}`;
+      // Include user ID in the path for better organization and security
+      const filePath = `user_${userSession.user.id}/${fileName}`;
+
+      const { error } = await supabase.storage
+        .from('courses')
+        .upload(filePath, file, {
+          cacheControl: '3600',
+          upsert: false,
+        });
+
+      if (error) throw error;
+
+      // Get public URL
+      const { data: { publicUrl } } = supabase.storage
+        .from('courses')
+        .getPublicUrl(filePath);
+
+      setNewCourse(prev => ({
+        ...prev,
+        course_cover_image_key: publicUrl
+      }));
+
+    } catch (error) {
+      console.error('Upload error:', error);
+      toast({
+        variant: "destructive",
+        title: "Upload Failed",
+        description: error.message || "Failed to upload image. Please try again."
+      });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const removeImage = () => {
+    setPreviewUrl(null);
+    setNewCourse(prev => ({
+      ...prev,
+      course_cover_image_key: ""
+    }));
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
     }
   };
 
@@ -58,27 +139,55 @@ const EducatorCourses = () => {
     e.preventDefault();
     if (!userSession || userSession.userType !== 'educator') return;
     
+    // Basic validation
+    if (!newCourse.title || !newCourse.description || !newCourse.course_cover_image_key) {
+      toast({
+        variant: "destructive",
+        title: "Validation Error",
+        description: "Please fill in all required fields and upload a cover image"
+      });
+      return;
+    }
+    
     setIsCreating(true);
     try {
-      const response = await api.createCourse({
-        educator_id: userSession.user.educator_id,
-        ...newCourse
+      const courseId = crypto.randomUUID();
+      
+      // Create course with localStorage
+      const newCourseData = {
+        ...newCourse,
+        course_id: courseId,
+        educator_id: userSession.user.id,
+        price: Number(newCourse.price),
+        is_published: Boolean(newCourse.is_published)
+      };
+      
+      // This will save to localStorage
+      const response = await api.createCourse(newCourseData);
+      
+      // Show success message
+      toast({
+        title: "Success",
+        description: "Course created successfully"
       });
       
-      if (response.success) {
-        toast({
-          title: "Success",
-          description: "Course created successfully"
-        });
-        setIsCreateDialogOpen(false);
-        setNewCourse({ title: "", description: "", price: 0, is_published: false });
-        fetchCourses();
-      }
+      // Reset form and refresh course list
+      setIsCreateDialogOpen(false);
+      setNewCourse({ 
+        title: "", 
+        description: "", 
+        price: 999, 
+        course_cover_image_key: "",
+        is_published: false 
+      });
+      
+      // Refresh the course list
+      fetchCourses();
     } catch (error) {
       toast({
         variant: "destructive",
         title: "Error",
-        description: "Failed to create course"
+        description: error.message || "Failed to create course"
       });
     } finally {
       setIsCreating(false);
@@ -94,7 +203,12 @@ const EducatorCourses = () => {
     },
     {
       title: "Total Revenue",
-      value: `$${courses.reduce((sum, course) => sum + (course.price * course.enrollment_count), 0).toLocaleString()}`,
+      value: new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: 'INR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+      }).format(courses.reduce((sum, course) => sum + (course.price * course.enrollment_count), 0)),
       icon: DollarSign,
       color: "text-green-600"
     },
@@ -137,43 +251,123 @@ const EducatorCourses = () => {
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={handleCreateCourse} className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="title">Course Title</Label>
-                <Input
-                  id="title"
-                  value={newCourse.title}
-                  onChange={(e) => setNewCourse(prev => ({ ...prev, title: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={newCourse.description}
-                  onChange={(e) => setNewCourse(prev => ({ ...prev, description: e.target.value }))}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="price">Price ($)</Label>
-                <Input
-                  id="price"
-                  type="number"
-                  min="0"
-                  step="0.01"
-                  value={newCourse.price}
-                  onChange={(e) => setNewCourse(prev => ({ ...prev, price: parseFloat(e.target.value) }))}
-                  required
-                />
-              </div>
-              <div className="flex items-center space-x-2">
-                <Switch
-                  id="published"
-                  checked={newCourse.is_published}
-                  onCheckedChange={(checked) => setNewCourse(prev => ({ ...prev, is_published: checked }))}
-                />
-                <Label htmlFor="published">Publish immediately</Label>
+              <div className="grid gap-4 py-4">
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="title" className="text-right">
+                    Title <span className="text-red-500">*</span>
+                  </Label>
+                  <Input
+                    id="title"
+                    value={newCourse.title}
+                    onChange={(e) => setNewCourse({...newCourse, title: e.target.value})}
+                    className="col-span-3"
+                    placeholder="e.g., Introduction to Web Development"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-start gap-4">
+                  <Label htmlFor="description" className="text-right pt-2">
+                    Description <span className="text-red-500">*</span>
+                  </Label>
+                  <Textarea
+                    id="description"
+                    value={newCourse.description}
+                    onChange={(e) => setNewCourse({...newCourse, description: e.target.value})}
+                    className="col-span-3"
+                    rows={4}
+                    placeholder="Provide a detailed description of your course"
+                    required
+                  />
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="price" className="text-right">
+                    Price (₹) <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="col-span-3 relative">
+                    <span className="absolute left-3 top-2.5 text-muted-foreground">₹</span>
+                    <Input
+                      id="price"
+                      type="number"
+                      value={newCourse.price}
+                      onChange={(e) => setNewCourse({...newCourse, price: parseFloat(e.target.value) || 0})}
+                      className="pl-8"
+                      min="0"
+                      step="0.01"
+                      required
+                    />
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 gap-4">
+                  <Label className="text-right pt-2">
+                    Cover Image <span className="text-red-500">*</span>
+                  </Label>
+                  <div className="col-span-3 space-y-2">
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleFileChange}
+                      accept="image/*"
+                      className="hidden"
+                      disabled={isUploading}
+                    />
+                    
+                    {previewUrl || newCourse.course_cover_image_key ? (
+                      <div className="relative group">
+                        <img
+                          src={previewUrl || `${import.meta.env.VITE_SUPABASE_URL}/storage/v1/object/public/courses/${newCourse.course_cover_image_key}`}
+                          alt="Course cover preview"
+                          className="w-full h-48 object-cover rounded-md border"
+                        />
+                        <Button
+                          type="button"
+                          variant="destructive"
+                          size="icon"
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={removeImage}
+                          disabled={isUploading}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <div 
+                        className="border-2 border-dashed rounded-md p-6 text-center cursor-pointer hover:bg-muted/50 transition-colors"
+                        onClick={() => fileInputRef.current?.click()}
+                      >
+                        <div className="flex flex-col items-center justify-center space-y-2">
+                          <Upload className="h-8 w-8 text-muted-foreground" />
+                          <p className="text-sm text-muted-foreground">
+                            {isUploading ? 'Uploading...' : 'Click to upload or drag and drop'}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            PNG, JPG, JPEG up to 5MB
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                    {isUploading && (
+                      <div className="text-sm text-muted-foreground flex items-center">
+                        <Loader2 className="h-4 w-4 animate-spin mr-2" />
+                        Uploading image...
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="grid grid-cols-4 items-center gap-4">
+                  <Label htmlFor="published" className="text-right">
+                    Publish Now
+                  </Label>
+                  <div className="col-span-3 flex items-center space-x-2">
+                    <Switch
+                      id="published"
+                      checked={newCourse.is_published}
+                      onCheckedChange={(checked) => setNewCourse({...newCourse, is_published: checked})}
+                    />
+                    <span className="text-sm text-muted-foreground">
+                      {newCourse.is_published ? 'Course will be published' : 'Save as draft'}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="flex justify-end space-x-2">
                 <Button type="button" variant="outline" onClick={() => setIsCreateDialogOpen(false)}>
@@ -246,7 +440,7 @@ const EducatorCourses = () => {
                     </Badge>
                   </TableCell>
                   <TableCell>{course.enrollment_count.toLocaleString()}</TableCell>
-                  <TableCell className="font-medium">${(course.price * course.enrollment_count).toLocaleString()}</TableCell>
+                  <TableCell className="font-medium">₹{(course.price * course.enrollment_count).toLocaleString('en-IN')}</TableCell>
                   <TableCell>
                     {course.star_rating > 0 ? (
                       <div className="flex items-center gap-1">

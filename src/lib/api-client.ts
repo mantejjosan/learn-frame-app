@@ -44,17 +44,41 @@ export const api = {
       body: JSON.stringify(data),
     });
     const result = await response.json();
-    
-    if (result.success && result.data?.token) {
-      // Store the token in the session
-      const session = {
-        user: result.data.user,
-        token: result.data.token,
-        userType: result.data.user.role || (result.data.user.student_id ? 'student' : 'educator'),
+
+    // Handle old format (without success field)
+    if (!result.success && result.message === 'Login successful') {
+      const { user, session } = result;
+      const userType = user?.user_metadata?.role || 'student';
+      const sessionData = {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.user_metadata?.name || user.email,
+          photo: user.user_metadata?.photo || ''
+        },
+        token: session?.access_token || '',
+        userType
       };
-      localStorage.setItem('userSession', JSON.stringify(session));
+      localStorage.setItem('userSession', JSON.stringify(sessionData));
+      return result;
     }
-    
+
+    // Handle new format
+    if (result.success && result.data) {
+      const { user, session, userType } = result.data;
+      const sessionData = {
+        user: {
+          id: user.id,
+          email: user.email,
+          name: user.name,
+          photo: user.photo || ''
+        },
+        token: session?.access_token || '',
+        userType
+      };
+      localStorage.setItem('userSession', JSON.stringify(sessionData));
+    }
+
     return result;
   },
 
@@ -75,9 +99,9 @@ export const api = {
         ...data.additionalData,
       }),
     });
-    
+
     const result = await response.json();
-    
+
     if (result.success && result.data?.token) {
       // Store the token in the session
       const session = {
@@ -87,8 +111,81 @@ export const api = {
       };
       localStorage.setItem('userSession', JSON.stringify(session));
     }
-    
+
     return result;
+  },
+
+  createStudent: async (data: {
+    email: string;
+    password: string;
+    student_name: string;
+    student_photo_key?: string;
+  }) => {
+    const response = await fetchWithAuth('/api/students/createStudent', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  createEducator: async (data: {
+    email: string;
+    password: string;
+    educator_name: string;
+    bio: string;
+    subjects: string[];
+    educator_photo_key?: string;
+  }) => {
+    const response = await fetchWithAuth('/api/educators/createEducator', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  createCourse: async (data: {
+    educator_id: string;
+    title: string;
+    description: string;
+    price: number;
+    course_cover_image_key?: string;
+    is_published: boolean;
+  }) => {
+    const response = await fetchWithAuth('/api/courses/createCourse', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+    return response.json();
+  },
+
+  getCourses: async (params?: {
+    educator_id?: string;
+    is_published?: boolean;
+  }) => {
+    const queryParams = new URLSearchParams();
+
+    if (params?.educator_id) {
+      queryParams.append('educator_id', params.educator_id);
+    }
+
+    if (params?.is_published !== undefined) {
+      queryParams.append('is_published', params.is_published.toString());
+    }
+
+    const url = `/api/courses/getCourses${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+
+    const response = await fetchWithAuth(url, {
+      method: 'GET',
+    });
+    return response.json();
+  },
+
+  updateCourse: async (id: string, data: any) => {
+    const response = await fetchWithAuth(`/api/courses/updateCourse/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+    return response.json();
   },
 
   // Generic fetch method that includes auth token

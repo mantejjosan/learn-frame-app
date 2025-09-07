@@ -192,31 +192,52 @@ const Signup = () => {
     setIsLoading(true);
 
     try {
-      const response = await api.signup({
-        email: formData.email,
-        password: formData.password,
-        role: formData.role as 'student' | 'educator',
-        name: formData.name,
-        additionalData: {
-          ...formData,
-          confirmPassword: undefined,
-          role: undefined,
-          name: undefined,
-          email: undefined,
-          password: undefined
-        }
-      });
+      let response;
+
+      if (formData.role === 'student') {
+        response = await api.createStudent({
+          email: formData.email,
+          password: formData.password,
+          student_name: formData.name,
+          student_photo_key: ''
+        });
+      } else {
+        response = await api.createEducator({
+          email: formData.email,
+          password: formData.password,
+          educator_name: formData.name,
+          bio: (formData.bio as string) || '',
+          subjects: (formData.subjects as string[]) || [],
+          educator_photo_key: ''
+        });
+      }
 
       if (response.success && response.data) {
-        const user = response.data.user || response.data;
-        const userRole = user.role || (user.student_id ? 'student' : 'educator');
-        
-        toast({
-          title: "Account created successfully!",
-          description: `Welcome ${user.name || user.student_name || user.educator_name}`
+        // After successful account creation, log the user in
+        const loginResponse = await api.login({
+          email: formData.email,
+          password: formData.password
         });
 
-        navigate(userRole === "student" ? "/student" : "/educator");
+        if (loginResponse.success && loginResponse.data) {
+          const { user, userType } = loginResponse.data;
+          
+          toast({
+            title: "Account created successfully!",
+            description: `Welcome ${user.name || user.email}`
+          });
+
+          // Navigate based on the actual user type from login
+          navigate(userType === "student" ? "/student" : "/educator");
+        } else {
+          // If login after signup fails, redirect to login page
+          toast({
+            title: "Account created!",
+            description: "Please login with your new credentials",
+            variant: "default"
+          });
+          navigate("/login");
+        }
       } else {
         throw new Error(response.message || "Signup failed");
       }

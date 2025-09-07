@@ -3,8 +3,11 @@ import { Button } from "@/components/ui/button";
 import { BookOpen, CreditCard, User, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import companyInfo from "@/company";
+import { getUserSession } from "@/lib/api";
 
 const StudentSidebar = () => {
+  const session = getUserSession();
+  const userType = session?.userType || 'student';
   const navItems = [
     { 
       title: "My Courses", 
@@ -34,7 +37,9 @@ const StudentSidebar = () => {
           <img src="/placeholder.svg" alt="Logo" className="h-8 w-8" />
           <div>
             <h1 className="text-lg font-bold text-foreground">{companyInfo.name}</h1>
-            <p className="text-sm text-muted-foreground">Student Portal</p>
+            <p className="text-sm text-muted-foreground">
+              {userType === 'student' ? 'Student Portal' : 'Educator Portal'}
+            </p>
           </div>
         </div>
       </div>

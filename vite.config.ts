@@ -13,6 +13,11 @@ export default defineConfig(({ mode }) => ({
         target: 'https://gdghack-co9h.onrender.com',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
+      },
+      '/api/courses': {
+        target: 'https://gdghack-co9h.onrender.com',
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/courses/, '/api/courses')
       }
     }
   },

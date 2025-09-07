@@ -1,5 +1,5 @@
-// Use relative path in development to leverage Vite's proxy
-const BASE_URL = import.meta.env.DEV ? '/api' : 'https://gdghack-co9h.onrender.com';
+// Use the full backend URL with /api prefix
+const BASE_URL = 'https://gdghack-co9h.onrender.com/api';
 
 interface ApiResponse<T> {
   success: boolean;
@@ -21,10 +21,14 @@ interface Educator {
 interface Student {
   student_id: string;
   student_name: string;
-  enrolled_courses: number;
+  email: string;
+  password: string;
+  enrolled_courses: string[]; // Array of course IDs
   completed_courses: number;
   following_count: number;
   student_photo_key: string;
+  created_at?: string;
+  updated_at?: string;
 }
 
 interface Course {
@@ -55,6 +59,14 @@ export const getUserSession = () => {
 
 export const clearUserSession = () => {
   localStorage.removeItem('userSession');
+};
+
+// Helper function to get auth token
+const getAuthToken = (): string | null => {
+  const session = localStorage.getItem('userSession');
+  if (!session) return null;
+  const { user } = JSON.parse(session);
+  return user?.token || null;
 };
 
 // API functions
@@ -117,13 +129,57 @@ export const api = {
   },
 
   getStudents: async (): Promise<ApiResponse<Student[]>> => {
-    const response = await fetch(`${BASE_URL}/students/getStudents`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-    });
-    return response.json();
+    // Get students from localStorage or return empty array
+    const students = JSON.parse(localStorage.getItem('students') || '[]');
+    console.log('Retrieved students from localStorage:', students);
+    return { 
+      success: true, 
+      data: students 
+    };
+  },
+  
+  getStudentById: async (studentId: string): Promise<ApiResponse<Student>> => {
+    const students = JSON.parse(localStorage.getItem('students') || '[]');
+    const student = students.find((s: Student) => s.student_id === studentId);
+    
+    if (!student) {
+      return { 
+        success: false, 
+        message: 'Student not found' 
+      };
+    }
+    
+    return { 
+      success: true, 
+      data: student 
+    };
+  },
+  
+  updateStudent: async (studentId: string, data: Partial<Student>): Promise<ApiResponse<Student>> => {
+    const students = JSON.parse(localStorage.getItem('students') || '[]');
+    const studentIndex = students.findIndex((s: Student) => s.student_id === studentId);
+    
+    if (studentIndex === -1) {
+      return { 
+        success: false, 
+        message: 'Student not found' 
+      };
+    }
+    
+    // Update student data
+    const updatedStudent = { 
+      ...students[studentIndex], 
+      ...data,
+      updated_at: new Date().toISOString()
+    };
+    
+    students[studentIndex] = updatedStudent;
+    localStorage.setItem('students', JSON.stringify(students));
+    
+    return { 
+      success: true, 
+      data: updatedStudent 
+    };
   },
 
   // Course APIs
@@ -134,11 +190,14 @@ export const api = {
     price: number;
     course_cover_image_key?: string;
     is_published: boolean;
+    course_id?: string;
   }): Promise<ApiResponse<Course>> => {
+    const token = getAuthToken();
     const response = await fetch(`${BASE_URL}/courses/createCourse`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
       body: JSON.stringify(data),
     });
@@ -149,24 +208,36 @@ export const api = {
     educator_id?: string;
     is_published?: boolean;
   }): Promise<ApiResponse<Course[]>> => {
-    const url = new URL(`${BASE_URL}/courses/getCourses`);
-    if (params?.educator_id) url.searchParams.append('educator_id', params.educator_id);
-    if (params?.is_published !== undefined) url.searchParams.append('is_published', params.is_published.toString());
-    
-    const response = await fetch(url.toString(), {
+    const token = getAuthToken();
+    const queryParams = new URLSearchParams();
+
+    if (params?.educator_id) {
+      queryParams.append('educator_id', params.educator_id);
+    }
+
+    if (params?.is_published !== undefined) {
+      queryParams.append('is_published', params.is_published.toString());
+    }
+
+    const url = `${BASE_URL}/courses/getCourses${queryParams.toString() ? '?' + queryParams.toString() : ''}`;
+
+    const response = await fetch(url, {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
     });
     return response.json();
   },
 
   updateCourse: async (id: string, data: Partial<Course>): Promise<ApiResponse<Course>> => {
+    const token = getAuthToken();
     const response = await fetch(`${BASE_URL}/courses/updateCourse/${id}`, {
       method: 'PUT',
       headers: {
         'Content-Type': 'application/json',
+        ...(token && { 'Authorization': `Bearer ${token}` }),
       },
       body: JSON.stringify(data),
     });
@@ -181,7 +252,7 @@ export const api = {
     name: string;
     additionalData?: Record<string, any>;
   }): Promise<ApiResponse<any>> => {
-    const response = await fetch(`${BASE_URL}/api/users/signup`, {
+    const response = await fetch(`${BASE_URL}/users/signup`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -195,14 +266,32 @@ export const api = {
     email: string;
     password: string;
   }): Promise<ApiResponse<any>> => {
-    const response = await fetch(`${BASE_URL}/api/users/login`, {
+    const response = await fetch(`${BASE_URL}/users/login`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify(data),
     });
-    return response.json();
+    const result = await response.json();
+
+    // If login is successful, store the session
+    if (result.success && result.data) {
+      const { user, session, userType } = result.data;
+      setUserSession({
+        id: user.id,
+        email: user.email,
+        name: user.name,
+        photo: user.photo || ''
+      }, userType);
+
+      // Store the token if provided
+      if (session?.access_token) {
+        localStorage.setItem('authToken', session.access_token);
+      }
+    }
+
+    return result;
   },
 };
 

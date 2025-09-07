@@ -11,13 +11,23 @@ import { useToast } from "@/hooks/use-toast";
 const EducatorBillings = () => {
   const { toast } = useToast();
 
+  // Format currency to Indian Rupees
+  const formatINR = (amount: number) => {
+    return new Intl.NumberFormat('en-IN', {
+      style: 'currency',
+      currency: 'INR',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(amount);
+  };
+
   const earnings = [
     {
       id: 1,
       course: "React Development Masterclass",
       student: "John Smith",
-      amount: "$99.00",
-      commission: "$69.30",
+      amount: 9900, // Storing in paise for accurate calculations
+      commission: 6930,
       date: "2024-02-15",
       status: "Completed"
     },
@@ -25,8 +35,8 @@ const EducatorBillings = () => {
       id: 2,
       course: "Modern CSS Techniques",
       student: "Sarah Johnson",
-      amount: "$79.00",
-      commission: "$55.30",
+      amount: 7900,
+      commission: 5530,
       date: "2024-02-14",
       status: "Completed"
     },
@@ -34,8 +44,8 @@ const EducatorBillings = () => {
       id: 3,
       course: "React Development Masterclass",
       student: "Mike Chen",
-      amount: "$99.00",
-      commission: "$69.30",
+      amount: 9900,
+      commission: 6930,
       date: "2024-02-13",
       status: "Pending"
     }
@@ -74,15 +84,15 @@ const EducatorBillings = () => {
   const stats = [
     {
       title: "Total Revenue",
-      value: "$4,230.00",
-      change: "+12% from last month",
+      value: formatINR(1245000), // ₹12,45,000
+      change: "+15% from last month",
       icon: DollarSign,
       color: "text-green-600"
     },
     {
-      title: "Commission Earned",
-      value: "$2,961.00",
-      change: "+8% from last month",
+      title: "Pending Payout",
+      value: formatINR(245000), // ₹2,45,000
+      change: "+5% from last month",
       icon: TrendingUp,
       color: "text-blue-600"
     },
@@ -95,7 +105,7 @@ const EducatorBillings = () => {
     },
     {
       title: "Average Order",
-      value: "$87.50",
+      value: formatINR(8750), // ₹8,750
       change: "+5% from last month",
       icon: Percent,
       color: "text-orange-600"
@@ -170,9 +180,9 @@ const EducatorBillings = () => {
                     <TableRow key={earning.id}>
                       <TableCell className="font-medium">{earning.course}</TableCell>
                       <TableCell>{earning.student}</TableCell>
-                      <TableCell>{earning.amount}</TableCell>
+                      <TableCell>{formatINR(earning.amount)}</TableCell>
                       <TableCell className="font-medium text-green-600">
-                        {earning.commission}
+                        {formatINR(earning.commission)}
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {earning.date}

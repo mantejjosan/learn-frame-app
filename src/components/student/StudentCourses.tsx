@@ -5,6 +5,7 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PlayCircle, Clock, BookOpen, Filter, Loader2 } from "lucide-react";
 import { api, Course } from "@/lib/api";
+import Razorpayreact from "../RazorpayReact";
 
 const StudentCourses = () => {
   const [courses, setCourses] = useState<Course[]>([]);
@@ -82,6 +83,7 @@ const StudentCourses = () => {
                     style={{ width: `${course.progress}%` }}
                   />
                 </div>
+                <Razorpayreact />
                 <div className="flex items-center gap-2 text-sm text-muted-foreground">
                   <Clock className="h-4 w-4" />
                   <span>${course.price}</span>

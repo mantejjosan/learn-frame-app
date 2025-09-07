@@ -6,8 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Link, useNavigate } from "react-router-dom";
 import { ArrowLeft, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import api from "@/lib/api-client";
 import companyInfo from "@/company";
+import { api } from "@/lib/api";
 
 const Login = () => {
   const [formData, setFormData] = useState({
@@ -24,30 +24,66 @@ const Login = () => {
     setIsLoading(true);
 
     try {
+      // Call the actual login API
       const response = await api.login({
         email: formData.email,
         password: formData.password
       });
 
-      if (response.success && response.data) {
-        const user = response.data.user || response.data;
-        const userRole = user.role || (user.student_id ? 'student' : 'educator');
-        
+      // Handle both old and new response formats
+      if (response.success === false) {
+        throw new Error(response.message || 'Login failed');
+      }
+
+      // Handle old format (without success field)
+      if (!response.success && (response as any).message === 'Login successful') {
+        const { user, session } = response as any;
+        const userType = user?.user_metadata?.role || 'student';
+
+        // Store user session
+        const sessionData = {
+          user: {
+            id: user.id,
+            email: user.email,
+            name: user.user_metadata?.name || user.email,
+            photo: user.user_metadata?.photo || ''
+          },
+          token: session?.access_token || '',
+          userType
+        };
+        localStorage.setItem('userSession', JSON.stringify(sessionData));
+
         toast({
-          title: "Welcome back!",
-          description: `Signed in as ${user.name || user.student_name || user.educator_name}`
+          title: "Welcome!",
+          description: `Signed in as ${user.user_metadata?.name || user.email}`,
+          variant: "default"
         });
 
-        // Navigate based on user role
-        navigate(userRole === "student" ? "/student" : "/educator");
-      } else {
-        throw new Error(response.message || "Login failed");
+        // Navigate based on user type
+        navigate(userType === "student" ? "/student" : "/educator");
+        return;
       }
+
+      // Handle new format
+      if (response.success) {
+        const { user, userType } = response.data;
+
+        toast({
+          title: "Welcome!",
+          description: `Signed in as ${user.name}`,
+          variant: "default"
+        });
+
+        // Navigate based on user type
+        navigate(userType === "student" ? "/student" : "/educator");
+      }
+      
     } catch (error) {
+      console.error('Login error:', error);
       toast({
         variant: "destructive",
         title: "Login failed",
-        description: error instanceof Error ? error.message : "Please check your credentials and try again."
+        description: error.message || "An error occurred during login."
       });
     } finally {
       setIsLoading(false);
